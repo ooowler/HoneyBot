@@ -12,7 +12,7 @@ def connect_to_db():
             user=user,
             password=password,
             database=db_name,
-            port=port
+            port=port,
         )
         connection.autocommit = True
 
