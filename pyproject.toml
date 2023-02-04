@@ -8,6 +8,7 @@ authors = ["evgeniy <Evgexac@yandex.ru>"]
 python = "^3.10"
 aiogram = "^2.24"
 psycopg2 = "^2.9.5"
+loguru = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 
