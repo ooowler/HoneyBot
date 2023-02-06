@@ -25,6 +25,7 @@ connection = connect_to_db()
 
 deposit_transactions = dict()
 buying_transactions = dict()
+order_list = dict()
 all_honey = honey.get_all_honey()
 inline_honey_list = kb.inline_list.get_list_inline_honey()
 
@@ -40,7 +41,7 @@ async def begin(message: types.Message):
         await bot.send_message(message.chat.id, "Привет!", reply_markup=kb.keyboard_main)
 
 
-@dp.message_handler(text="домой")
+@dp.message_handler(text="Домой")
 async def begin(message: types.Message):
     user_exist = query.check_user_exist(connection, message.chat.id)
     if user_exist:
@@ -67,12 +68,17 @@ async def deposit(message: types.Message):
 @dp.message_handler(lambda msg: msg.text.isdigit() and int(msg.text) > 0)
 async def depo_sum(message: types.Message):
     num = int(message.text)
-    if num > 5000:
-        await bot.send_message(message.chat.id, "куда тебе столько меда?", reply_markup=kb.keyboard_main)
+    if num > 3000:
+        await bot.send_message(message.chat.id, "Куда тебе столько меда?", reply_markup=kb.keyboard_main)
         return
 
+    if message.chat.id in deposit_transactions:
+        await bot.send_message(message.chat.id,
+                               f"Подтверди или отмени пополнение на сумму {deposit_transactions[message.chat.id]} рублей",
+                               reply_markup=kb.keyboard_transaction)
+        return
     deposit_transactions[message.chat.id] = num
-    await bot.send_message(message.chat.id, "Пополни в течение 15 минут и нажми кнопку подтвердить",
+    await bot.send_message(message.chat.id, "Пополни и нажми кнопку подтвердить\nреквизиты: 4276060066934898 (сбер)",
                            reply_markup=kb.keyboard_transaction)
 
 
@@ -112,7 +118,7 @@ async def deposit_accept_admin(callback_query: types.CallbackQuery):
         await bot.send_message(admin_id,
                                f"[ADMIN] {user_id} пополнение ПОДТВЕРЖДЕНО на сумму {deposit_transactions[user_id]} рублей")
         del deposit_transactions[user_id]
-        await bot.send_message(user_id, "баланс пополнен!")
+        await bot.send_message(user_id, "Баланс пополнен!")
 
 
 @dp.callback_query_handler(text="deposit_cancel")
@@ -123,7 +129,7 @@ async def deposit_cancel_admin(callback_query: types.CallbackQuery):
 
     await bot.send_message(admin_id,
                            f"[ADMIN] {user_id} пополнение ОТМЕНЕНО на сумму {deposit_transactions[user_id]} рублей")
-    await bot.send_message(user_id, "транзакция отменена!")
+    await bot.send_message(user_id, "Транзакция отменена!")
     del deposit_transactions[user_id]
 
 
@@ -143,20 +149,36 @@ async def buy_callback(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
     buying_transactions[user_id] = {"honey_id": honey_id, "honey_amount": honey_amount}
     await bot.send_message(user_id,
-                           f"ты выбрал мёд под номером {honey_id} в количестве {honey_amount} штук\nПрекрасный выбор!",
+                           f"Ты выбрал мёд под номером {honey_id} в количестве {honey_amount} штук\nПрекрасный выбор!",
                            reply_markup=kb.pay_keyboard)
+
+
+@dp.callback_query_handler(Text(startswith="dorm_"))
+async def buy_callback(callback_query: types.CallbackQuery):
+    dorm = callback_query.data[5]
+    user_id = callback_query["from"]["id"]
+    dorm_to_string = "Общежитие №3 ИТМО" if dorm == "i" else "Общежитие ГУМ РФ"
+    await bot.send_message(user_id,
+                           f"Заказ принят, можно забрать в {dorm_to_string}",
+                           reply_markup=kb.keyboard_main)
+    order_list[user_id]["place"] = dorm_to_string
+    await bot.send_message(admin_id,
+                           f"[ORDER!]\n{order_list[user_id]}",
+                           reply_markup=kb.keyboard_main)
+    del order_list[user_id]
 
 
 @dp.callback_query_handler(text="pay_accept")
 async def pay_accept(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
     if user_id not in buying_transactions:
-        error_print("заказа не было создано!")
+        error_print("Заказа не было создано!")
         await bot.send_message(user_id, "Ты не сделал заказ")
         return
 
     honey_id = buying_transactions[user_id]["honey_id"]
     honey_amount = buying_transactions[user_id]["honey_amount"]
+    honey_price = query.get_honey_price(connection, honey_id)
 
     res = query.buy_honey(connection, user_id, honey_id, honey_amount)
     if res is not True:
@@ -166,26 +188,37 @@ async def pay_accept(callback_query: types.CallbackQuery):
 
     await bot.send_message(admin_id,
                            f"[ADMIN] {user_id} купил мед под id: {honey_id} в количестве {honey_amount} шт")
+    order_list[user_id] = {"name": callback_query["from"]["first_name"], "username": callback_query["from"]["username"],
+                           "honey_id": honey_id, "amount": honey_amount,
+                           "total": honey_amount * honey_price,
+                           "place": "none"}
+
 
     del buying_transactions[user_id]
-    await bot.send_message(user_id, "успешно!")
+    await bot.send_message(user_id, f"Куплено на {honey_amount * honey_price} рублей! Выбери место получения",
+                           reply_markup=kb.choose_place)
 
 
 @dp.callback_query_handler(text="pay_cancel")
 async def pay_cancel(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
     if user_id not in buying_transactions:
-        error_print("заказа не было создано!")
+        error_print("Заказа не было создано!")
         await bot.send_message(user_id, "Ты уже отменил заказ")
         return
 
     del buying_transactions[user_id]
-    await bot.send_message(user_id, "отменено!")
+    await bot.send_message(user_id, "Отменено!")
+
+
+@dp.message_handler(text="order_list_info")
+async def default_func(message: types.Message):
+    print(order_list)
 
 
 @dp.message_handler()
 async def default_func(message: types.Message):
-    await bot.send_message(message.chat.id, "я не понял")
+    await bot.send_message(message.chat.id, "Я не понял")
 
 
 executor.start_polling(dp)

@@ -5,7 +5,7 @@ kb_main = [
     [
         types.KeyboardButton(text="Баланс"),
         types.KeyboardButton(text="Пополнить"),
-        types.KeyboardButton(text="Купить мёд")
+        types.KeyboardButton(text="Купить мёд"),
     ],
 ]
 keyboard_main = types.ReplyKeyboardMarkup(
@@ -66,6 +66,11 @@ class InlineHoney:
 inline_list = InlineHoney()
 
 
-inline_accept_1 = InlineKeyboardButton('верно?', callback_data='pay_accept')
-inline_cancel_2 = InlineKeyboardButton('отмена?', callback_data='pay_cancel')
+inline_accept_1 = InlineKeyboardButton('Верно?', callback_data='pay_accept')
+inline_cancel_2 = InlineKeyboardButton('Отмена?', callback_data='pay_cancel')
 pay_keyboard = InlineKeyboardMarkup().add(inline_accept_1, inline_cancel_2)
+
+
+choose_place_1 = InlineKeyboardButton('Общежитие №3 ИТМО', callback_data='dorm_itmo')
+choose_place_2 = InlineKeyboardButton('Общежитие ГУМ РФ', callback_data='dorm_gum')
+choose_place = InlineKeyboardMarkup().add(choose_place_1, choose_place_2)

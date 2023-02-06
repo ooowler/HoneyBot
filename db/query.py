@@ -53,7 +53,7 @@ def check_user_exist(connection, user_id) -> bool:
         result = cursor.fetchall()
 
         if len(result) != 0:
-            error_print(f"пользователь с id: {user_id} уже есть в базе данных")
+            error_print(f"Пользователь с id: {user_id} уже есть в базе данных")
             return True
 
         return False
@@ -92,11 +92,11 @@ def buy_honey(connection, user_id, honey_id, amount_to_buy):
     honey_price = get_honey_price(connection, honey_id)
 
     if amount_to_buy > honey_amount:
-        error = f"жаль, но такого количества меда у нас нет :("
+        error = f"Жаль, но такого количества меда у нас нет :("
         return error
 
     if user_balance < amount_to_buy * honey_price:
-        error = f"не хватает средств, пополни кошелек"
+        error = f"Не хватает средств, пополни кошелек"
         return error
 
     with connection.cursor() as cursor:
