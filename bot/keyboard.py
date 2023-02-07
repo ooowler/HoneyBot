@@ -71,6 +71,8 @@ inline_cancel_2 = InlineKeyboardButton('Отмена?', callback_data='pay_cance
 pay_keyboard = InlineKeyboardMarkup().add(inline_accept_1, inline_cancel_2)
 
 
-choose_place_1 = InlineKeyboardButton('Общежитие №3 ИТМО', callback_data='dorm_itmo')
-choose_place_2 = InlineKeyboardButton('Общежитие ГУМ РФ', callback_data='dorm_gum')
+choose_place_1 = InlineKeyboardButton('Альпийский переулок, 15к2', callback_data='dorm_itmo')
+choose_place_2 = InlineKeyboardButton('Площадь Стачек, 5', callback_data='dorm_gum')
 choose_place = InlineKeyboardMarkup().add(choose_place_1, choose_place_2)
+
+

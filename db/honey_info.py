@@ -4,11 +4,14 @@ from db.io.prints import system_print, error_print
 class Honey:
     __honey_dict = {}
 
-    __honey_1 = {"id": 1, "name": "липовый", "info": "some info1", "price": 250}
-    __honey_2 = {"id": 2, "name": "цветочный", "info": "some info2", "price": 250}
-    __honey_3 = {"id": 3, "name": "гречичный", "info": "some info3", "price": 250}
+    __honey_info1 = '''\nБыл собран в конце августа в республике Башкортостан, в Белорецком районе\nСчитается, что цветочный мед самый сладкий и имеет очень насыщенный вкус\n'''
 
-    __honey_list = [__honey_1, __honey_2, __honey_3]
+    __honey_1 = {"id": 1, "name": "цветочный", "info": __honey_info1, "price": 250}
+    # __honey_2 = {"id": 2, "name": "цветочный", "info": "some info2", "price": 250}
+    # __honey_3 = {"id": 3, "name": "гречичный", "info": "some info3", "price": 250}
+
+    # __honey_list = [__honey_1, __honey_2, __honey_3]
+    __honey_list = [__honey_1]
 
     for honey in __honey_list:
         __honey_dict[honey["id"]] = honey
