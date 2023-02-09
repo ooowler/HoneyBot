@@ -5,6 +5,7 @@ from aiogram.dispatcher.filters import Text
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ContentType
 from db.honey_info import honey
 import db.honey_info as honey_info
+from bot.io_admin import dict_to_order_info, str_to_products_info
 
 from db.connection import connect_to_db, close_db
 import db.query as query
@@ -82,7 +83,7 @@ async def depo_sum(message: types.Message):
     if PAYMENTS_TOKEN.split(':')[1] == 'TEST':
         await bot.send_message(message.chat.id, 'Тестовый платеж!')
 
-    PRICE = types.LabeledPrice(label=f'deposit {num * 100} rub', amount=num * 100)
+    PRICE = types.LabeledPrice(label=f'К оплате: {num} рублей', amount=num * 100)  # 1 руб = 100 копеек
     await bot.send_invoice(message.chat.id,
                            title='Вкусный мёд',
                            description='Пополни и Купи ↑',
@@ -99,7 +100,7 @@ async def depo_sum(message: types.Message):
 
 # pre checkout (must be answered in 10 seconds)
 
-@dp.pre_checkout_query_handler(lambda query: True)
+@dp.pre_checkout_query_handler(lambda pay_query: True)
 async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
@@ -120,7 +121,8 @@ async def buy(message: types.Message):
     await bot.send_message(message.chat.id, "<b>Список товаров</b>", reply_markup=kb.keyboard_main)
     for honey_key in all_honey.keys():
         amount = query.get_honey_amount(connection, honey_key)
-        info_to_user = f"""<b>Мёд: {all_honey[honey_key]["name"]}</b>\n{all_honey[honey_key]["info"]}\nЦена                  {all_honey[honey_key]["price"]}рублей\nКоличество      200 грамм\nВ наличии         {amount}"""
+        product_info = str_to_products_info(all_honey[honey_key]["price"], 200, amount)
+        info_to_user = f"""<b>Мёд {all_honey[honey_key]["name"]}</b> 🍯\n\n<b>Описание</b>\n{all_honey[honey_key]["info"]}\n<code>{product_info}</code>"""
         await bot.send_message(message.chat.id, info_to_user, reply_markup=inline_honey_list[honey_key])
 
 
@@ -209,9 +211,14 @@ async def buy_callback(message: types.Message):
 @dp.message_handler()
 async def default_func(message: types.Message):
     user_id = message.chat.id
-    if user_id in order_list and order_list[user_id]["comment"] == "":
+    if user_id in order_list and order_list[user_id]["comment"] == "" and order_list[user_id]["place"] != "none":
+        if len(message.text) > 50:
+            await bot.send_message(user_id, f"Я думаю, комментарий должен быть поменьше, введи еще раз")
+            return
+
         order_list[user_id]["comment"] = message.text
-        await admin_send_message(f"[DEBUG INFO!]\n{order_list[user_id]}",
+        msg = dict_to_order_info(order_list[user_id])
+        await admin_send_message(f"<b>[ORDER]</b>\n\n{msg}",
                                  reply_markup=kb.keyboard_main)
 
         await bot.send_message(user_id,

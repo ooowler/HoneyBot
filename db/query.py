@@ -84,8 +84,8 @@ def deposit(connection, user_id, value) -> bool:
 
             system_print("Data inserted successfully")
             return True
-    except Exception as ex:
-        error_print(f"NO DEPOSIT!\n{ex}")
+    except:
+        error_print(f"NO DEPOSIT!")
         return False
 
 
