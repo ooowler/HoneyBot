@@ -73,16 +73,20 @@ def insert_to_user_table(connection, user_id, balance):
 
 def deposit(connection, user_id, value) -> bool:
     user_balance = get_user_balance(connection, user_id)
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"""UPDATE users SET 
-            balance = '{user_balance + value}' 
-            WHERE id = '{user_id}';
-            """
-        )
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""UPDATE users SET 
+                balance = '{user_balance + value}' 
+                WHERE id = '{user_id}';
+                """
+            )
 
-        system_print("Data inserted successfully")
-        return True
+            system_print("Data inserted successfully")
+            return True
+    except Exception as ex:
+        error_print(f"NO DEPOSIT!\n{ex}")
+        return False
 
 
 def buy_honey(connection, user_id, honey_id, amount_to_buy):

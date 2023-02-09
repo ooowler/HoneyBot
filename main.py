@@ -2,7 +2,7 @@ import psycopg2
 from loguru import logger
 from aiogram import types, executor, Dispatcher, Bot
 from aiogram.dispatcher.filters import Text
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ContentType
 from db.honey_info import honey
 import db.honey_info as honey_info
 
@@ -15,6 +15,9 @@ from db.io.prints import system_print, error_print
 token_file = open('token')
 TOKEN = token_file.readline()
 
+payment_token_file = open('kassa')
+PAYMENTS_TOKEN = payment_token_file.readline()
+
 admin_file = open('admin')
 admin_id1 = int(admin_file.readline())
 admin_id2 = int(admin_file.readline())
@@ -25,7 +28,6 @@ dp = Dispatcher(bot)
 
 connection = connect_to_db()
 
-deposit_transactions = dict()
 buying_transactions = dict()
 order_list = dict()
 all_honey = honey.get_all_honey()
@@ -52,15 +54,6 @@ async def begin(message: types.Message):
         await bot.send_message(message.chat.id, "Привет!", reply_markup=kb.keyboard_main)
 
 
-# @dp.message_handler(text=["Домой", "домой"])
-# async def begin(message: types.Message):
-#     user_exist = query.check_user_exist(connection, message.chat.id)
-#     if user_exist:
-#         await bot.send_message(message.chat.id, "Ты в главном меню", reply_markup=kb.keyboard_main)
-#     else:
-#         query.insert_to_user_table(connection, message.chat.id, 0)
-#         await bot.send_message(message.chat.id, "Ты в главном меню", reply_markup=kb.keyboard_main)
-
 
 @dp.message_handler(text="Баланс")
 async def get_balance(message: types.Message):
@@ -79,69 +72,47 @@ async def deposit(message: types.Message):
 @dp.message_handler(lambda msg: msg.text.isdigit() and int(msg.text) > 0)
 async def depo_sum(message: types.Message):
     num = int(message.text)
+    if num < 60:
+        await bot.send_message(message.chat.id, "Пополни от 60 рублей", reply_markup=kb.keyboard_main)
+        return
     if num > 3000:
         await bot.send_message(message.chat.id, "Куда тебе столько меда?", reply_markup=kb.keyboard_main)
         return
 
-    if message.chat.id in deposit_transactions:
-        await bot.send_message(message.chat.id,
-                               f"Подтверди или отмени пополнение на сумму {deposit_transactions[message.chat.id]} рублей",
-                               reply_markup=kb.keyboard_transaction)
-        return
-    deposit_transactions[message.chat.id] = num
-    await bot.send_message(message.chat.id, "Пополни и нажми кнопку подтвердить\nреквизиты: 4276060066934898 (сбер)",
-                           reply_markup=kb.keyboard_transaction)
+    if PAYMENTS_TOKEN.split(':')[1] == 'TEST':
+        await bot.send_message(message.chat.id, 'Тестовый платеж!')
+
+    PRICE = types.LabeledPrice(label=f'deposit {num * 100} rub', amount=num * 100)
+    await bot.send_invoice(message.chat.id,
+                           title='Вкусный мёд',
+                           description='Пополни и Купи ↑',
+                           provider_token=PAYMENTS_TOKEN,
+                           currency='rub',
+                           photo_url='https://media.istockphoto.com/id/520733611/photo/jar-of-honey-with-honeycomb.jpg?s=612x612&w=0&k=20&c=k7s6XnJvM1O3kLfy5XUn1M169j11Zcca9rFgvIBGkUE=',
+                           photo_width=800,
+                           photo_height=612,
+                           is_flexible=False,
+                           prices=[PRICE],
+                           start_parameter='depo_for_honey',
+                           payload = 'test_payload')
 
 
-@dp.message_handler(text="Подтвердить")
-async def deposit_accept(message: types.Message):
-    await bot.send_message(message.chat.id, "Мы проверяем платеж, скоро ответим!", reply_markup=kb.keyboard_main)
+# pre checkout (must be answered in 10 seconds)
+
+@dp.pre_checkout_query_handler(lambda query: True)
+async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
+    await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
+
+@dp.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
+async def successful_payment(message: types.Message):
     user_id = message.chat.id
-    if user_id in deposit_transactions:
-        print(message)
-        await admin_send_message(f"[ADMIN] {message.chat.id} {message.chat.first_name}\nusername: {message.chat.username}\nотправляет {deposit_transactions[user_id]} рублей",
-                                 reply_markup=kb.inline_kb_transaction)
-    else:
-        error_print("такой транзакции нет")
+    total_rub = message.successful_payment.total_amount // 100
+    res = query.deposit(connection, user_id, total_rub)
+    if not res:
+        await admin_send_message(f"[ALERT!]\nДеньги отправлены, но БД не записала\nuser_id: {user_id}, username:{message.chat.username}, amount: {total_rub} рублей!")
+        await bot.send_message(message.chat.id, f"Просим прощения, возникла ошибка\nМы получили уведомление, решаем проблему\n")
 
-
-@dp.message_handler(text="Отменить")
-async def deposit_cancel(message: types.Message):
-    await bot.send_message(message.chat.id, "Заказ отменен!", reply_markup=kb.keyboard_main)
-    user_id = message.chat.id
-    if user_id in deposit_transactions:
-        await admin_send_message(
-            f"[ADMIN] {message.chat.id} отменил заказ на {deposit_transactions[user_id]} рублей")
-        del deposit_transactions[user_id]
-    else:
-        error_print("такой транзакции нет")
-
-
-@dp.callback_query_handler(text="deposit_accept")
-async def deposit_accept_admin(callback_query: types.CallbackQuery):
-    # user_id = callback_query["from"]["id"]
-    user_id = callback_query.message.text[8:8 + 8 + 1]  # warning!
-    user_id = int(user_id)
-    if user_id not in deposit_transactions:
-        return
-
-    if user_id in deposit_transactions:
-        query.deposit(connection, user_id, deposit_transactions[user_id])
-        await admin_send_message(
-            f"[ADMIN] {user_id} пополнение ПОДТВЕРЖДЕНО на сумму {deposit_transactions[user_id]} рублей")
-        del deposit_transactions[user_id]
-        await bot.send_message(user_id, "Баланс пополнен!")
-
-
-@dp.callback_query_handler(text="deposit_cancel")
-async def deposit_cancel_admin(callback_query: types.CallbackQuery):
-    user_id = int(callback_query.message.text[8:8 + 8 + 1])  # warning!
-    if user_id not in deposit_transactions:
-        return
-
-    await admin_send_message(f"[ADMIN] {user_id} пополнение ОТМЕНЕНО на сумму {deposit_transactions[user_id]} рублей")
-    await bot.send_message(user_id, "Транзакция отменена!")
-    del deposit_transactions[user_id]
+    await bot.send_message(message.chat.id, f'Баланс пополнен на сумму: {total_rub} рублей!')
 
 
 @dp.message_handler(text="Купить мёд")
