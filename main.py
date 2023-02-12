@@ -19,20 +19,30 @@ import bot.keyboard as kb
 
 query_create_tables.to_create_all_tables()
 
+
 @dp.message_handler(commands=['start'])
 async def begin(message: types.Message):
     user_exist = query_users.check_user_exists(message.chat.id)
-    if message.chat.id in admins:
-        await bot.send_message(message.chat.id, "Привет мой господин", reply_markup=kb.keyboard_main)
-        return
-
     if user_exist:
-        await bot.send_message(message.chat.id, "Привет! Я тебя помню :)", reply_markup=kb.keyboard_main)
+        if message.chat.id in admins:
+            await bot.send_message(message.chat.id, "Привет мой господин\nтебе доступна команда: <code>/admin</code>",
+                                   reply_markup=kb.keyboard_main)
+        else:
+            await bot.send_message(message.chat.id, "Привет! Я тебя помню :)", reply_markup=kb.keyboard_main)
     else:
         query_users.insert_user_balance_table(message.chat.id, 0)
         query_users.insert_user_info_table(message.chat.id, message.chat.first_name, message.chat.last_name,
                                            message.chat.username)
         await bot.send_message(message.chat.id, "Привет!", reply_markup=kb.keyboard_main)
+
+
+@dp.message_handler(commands=['admin'])
+async def begin(message: types.Message):
+    user_id = message.chat.id
+    if user_id not in admins:
+        return
+
+    bot.send_message(user_id, )
 
 
 @dp.message_handler(text="Баланс")
@@ -211,9 +221,6 @@ async def buy_callback(callback_query: types.CallbackQuery):
     await bot.send_message(user_id,
                            f"Отлично! Напиши комментарий к заказу",
                            reply_markup=types.ReplyKeyboardRemove())
-
-
-
 
 
 # ---- ADMIN COMMANDS ----

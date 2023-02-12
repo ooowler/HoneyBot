@@ -92,3 +92,4 @@ def deposit(user_id, value) -> bool:
     except Exception as exc:
         error_print(f"NO DEPOSIT! {exc}")
         return False
+

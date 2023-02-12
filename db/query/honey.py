@@ -114,7 +114,7 @@ def buy_honey(user_id, user_balance, honey_id, amount_to_buy) -> str:  # enums
         error = f"Жаль, но такого количества меда у нас нет :("
         return error
 
-    if user_balance < amount_to_buy * honey_price:
+    if int(user_balance) < int(amount_to_buy * honey_price):
         error = f"Не хватает средств, пополни кошелек"
         return error
 
