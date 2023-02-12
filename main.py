@@ -17,7 +17,6 @@ import db.query.users as query_users
 import db.query.buying_transactions as query_buying_transactions
 import bot.keyboard as kb
 
-query_create_tables.drop_all_tables()
 query_create_tables.to_create_all_tables()
 
 @dp.message_handler(commands=['start'])
