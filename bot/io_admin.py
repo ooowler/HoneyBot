@@ -1,20 +1,39 @@
-def dict_to_order_info(order: dict) -> str:
+import db.query.orders as query_orders
+from db.connection import connection
+from bot.bot import bot
+from system_info import admins
+
+
+async def admin_send_message(message, reply_markup=None):
+    for admin_id in admins:
+        if reply_markup is not None:
+            await bot.send_message(admin_id, message, reply_markup=reply_markup)
+        else:
+            await bot.send_message(admin_id, message)
+
+
+def dict_to_order_info(order_id: int) -> str:
     '''
     keys:
-    {'name', 'username', 'honey_id', 'amount', 'total', 'place', 'comment'}
+    {order_id, user_id, first_name, last_name, username, honey_id, honey_name, amount, total, place, comment, order_date, done}
 
     return:
     str, which can parse in HTML
     '''
-    keys = ['name', 'username', 'honey_id', 'amount', 'total', 'place', 'comment']
-    res: str = ''
-    max_len_key = len(keys[0])
-    offset = 2
-    for key in keys:
-        max_len_key = max(max_len_key, len(key))
+    order_items = query_orders.get_order(order_id)
+    if order_items == -1:
+        return "no order"
 
-    for key in keys:
-        res += f'<code>{key}:{" " * (max_len_key - len(key) + offset)} | {order[key]} |</code>\n'
+    items = ['order_id', 'user_id', 'first_name', 'last_name', 'username', 'honey_id', 'honey_name',
+             'amount', 'total', 'place', 'comment', 'order_date', 'done']
+    res: str = ''
+    max_len_key = len(items[0])
+    offset = 2
+    for item in items:
+        max_len_key = max(max_len_key, len(item))
+
+    for i, order_item in enumerate(order_items):
+        res += f'<code>{items[i]}:{" " * (max_len_key - len(items[i]) + offset)} | {order_item} |</code>\n'
 
     return res
 
@@ -27,7 +46,7 @@ def str_to_products_info(price, amount, in_stock) -> str:
     return:
     str, which can parse in HTML
     '''
-    keys = {'Цена': f"{str(price)} рублей" , 'Количество': f"{str(amount)} грамм", 'В наличии': f"{in_stock} шт."}
+    keys = {'Цена': f"{str(price)} рублей", 'Количество': f"{str(amount)} грамм", 'В наличии': f"{in_stock} шт."}
     res: str = ''
     max_len_key = 0
     offset = 2

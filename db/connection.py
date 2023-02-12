@@ -30,6 +30,9 @@ def connect_to_db():
     return connection
 
 
+connection = connect_to_db()
+
+
 def close_db(connection):
     if connection:
         connection.close()

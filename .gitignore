@@ -136,3 +136,4 @@ db/config.py
 admin
 TODO
 kassa
+system_info.py
