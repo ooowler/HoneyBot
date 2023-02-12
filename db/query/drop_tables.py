@@ -30,4 +30,3 @@ def delete_table_orders() -> None:
 def delete_table_buying_transactions() -> None:
     with connection.cursor() as cursor:
         cursor.execute("DROP TABLE IF EXISTS buying_transactions;")
-
