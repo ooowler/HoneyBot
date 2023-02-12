@@ -42,6 +42,15 @@ def update_done_1(order_id) -> None:
             """
         )
 
+def update_done_3(order_id) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""UPDATE orders SET 
+                done = 3
+                WHERE orders.order_id = {order_id};
+            """
+        )
+
 
 def is_user_has_new_order(user_id) -> bool:
     with connection.cursor() as cursor:
@@ -119,7 +128,6 @@ def get_new_user_order(user_id) -> Optional[tuple]:
             """
         )
         result = cursor.fetchall()
-        print(result)
         if len(result) != 1:
             error_print(f'User {user_id} has {len(result)} new orders, not 1')
             return

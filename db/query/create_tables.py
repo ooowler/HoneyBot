@@ -85,9 +85,25 @@ def create_table_orders() -> None:
         system_print("Orders table created successfully")
 
 
+def create_table_buying_transactions() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """ CREATE TABLE IF NOT EXISTS buying_transactions
+            (
+                user_id int UNIQUE,
+                honey_id int NOT NULL,
+                honey_amount int NOT NULL
+            );
+            """
+        )
+
+        system_print("Buying_transactions table created successfully")
+
+
 def to_create_all_tables() -> None:
     create_table_users_info()
     create_table_users_balance()
     create_table_honey_info()
     create_table_honey_price()
     create_table_orders()
+    create_table_buying_transactions()

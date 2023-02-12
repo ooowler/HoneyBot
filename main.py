@@ -8,15 +8,15 @@ from db.io.prints import system_print, error_print
 from system_info import PAYMENTS_TOKEN, admins
 from bot.bot import bot, dp
 from bot.io_admin import admin_send_message
+from bot.keyboard import inline_honey_list
 
 import db.query.create_tables as query_create_tables
 import db.query.honey as query_honey
 import db.query.orders as query_orders
 import db.query.users as query_users
+import db.query.buying_transactions as query_buying_transactions
 import bot.keyboard as kb
 
-buying_transactions = dict()
-inline_honey_list = kb.inline_list.get_list_inline_honey()
 
 query_create_tables.to_create_all_tables()
 
@@ -123,12 +123,15 @@ async def buy(message: types.Message):
 
 @dp.callback_query_handler(Text(startswith="buy_"))
 async def buy_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query["from"]["id"]
+    if query_buying_transactions.is_user_exists(user_id):
+        await bot.send_message(user_id, 'Пожалуйста, заверши оформление прошлой покупки')
+        return
     honey_id = int(callback_query.data[-3])
     honey_amount = int(callback_query.data[-1])
     honey_price = query_honey.get_honey_price(honey_id)
     honey_info = query_honey.get_honey_info(honey_id)
-    user_id = callback_query["from"]["id"]
-    buying_transactions[user_id] = {"honey_id": honey_id, "honey_amount": honey_amount}
+    query_buying_transactions.create_new(user_id, honey_id, honey_amount)
     await bot.send_message(user_id,
                            f"Ты выбрал {honey_info[1]} мёд на сумму: {honey_amount * honey_price} рублей\nПрекрасный выбор!",
                            reply_markup=kb.pay_keyboard)
@@ -136,8 +139,12 @@ async def buy_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(Text(startswith="dorm_"))
 async def buy_callback(callback_query: types.CallbackQuery):
-    dorm = callback_query.data[5]
     user_id = callback_query["from"]["id"]
+    if not query_buying_transactions.is_user_exists(user_id):
+        await bot.send_message(user_id, 'Товар не выбран')
+        return
+
+    dorm = callback_query.data[5]
     if query_orders.is_user_has_new_order(user_id) and query_orders.is_user_has_changed_place_in_new_order(user_id):
         await bot.send_message(user_id, 'Пожалуйста, введи комментарий', reply_markup=types.ReplyKeyboardRemove())
         return
@@ -147,12 +154,9 @@ async def buy_callback(callback_query: types.CallbackQuery):
         order = order[0]
 
     dorm_to_string = "Альпийский переулок, 15к2" if dorm == "i" else "Площадь Стачек, 5"
-    await bot.send_message(user_id,
-                           f"Заказ принят, можно забрать по адресу {dorm_to_string}",
-                           reply_markup=kb.keyboard_main)
 
     await bot.send_message(user_id,
-                           f"Напиши комментарий к заказу",
+                           f"Отлично! Напиши комментарий к заказу",
                            reply_markup=types.ReplyKeyboardRemove())
 
     if order:
@@ -163,21 +167,22 @@ async def buy_callback(callback_query: types.CallbackQuery):
 async def pay_accept(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
     user_info = query_users.get_user_info(user_id)
-    if user_id not in buying_transactions:
+    if not query_buying_transactions.is_user_exists(user_id):
         error_print("Заказа не было создано!")
         await bot.send_message(user_id, "Ты не сделал заказ")
         return
 
     user_balance = query_users.get_user_balance(user_id)
-    honey_id = buying_transactions[user_id]["honey_id"]
-    honey_amount = buying_transactions[user_id]["honey_amount"]
+    user_transaction_info = query_buying_transactions.get_user_transaction_info(user_id)
+    honey_id = user_transaction_info[0]
+    honey_amount = user_transaction_info[1]
     honey_price = query_honey.get_honey_price(honey_id)
     honey = query_honey.get_honey_info(honey_id)
     total = honey_amount * honey_price
 
     res = query_honey.buy_honey(user_id, user_balance, honey_id, honey_amount)
     if res != 'success':
-        del buying_transactions[user_id]
+        query_buying_transactions.delete_transaction(user_id)
         await bot.send_message(user_id, res)
         return
 
@@ -188,7 +193,6 @@ async def pay_accept(callback_query: types.CallbackQuery):
     query_orders.insert_new_order(user_id, user_info[1], user_info[2], user_info[3], honey_id, honey[1],
                                   honey_amount, total, "none", "none", time_order)
 
-    del buying_transactions[user_id]
     await bot.send_message(user_id,
                            f"Ты купил {honey[1]} мёд на {honey_amount * honey_price} рублей! Выбери место получения",
                            reply_markup=kb.choose_place)
@@ -197,12 +201,21 @@ async def pay_accept(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(text="pay_cancel")
 async def pay_cancel(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
-    if user_id not in buying_transactions:
-        error_print("Заказа не было создано!")
-        await bot.send_message(user_id, "Ты уже отменил заказ")
+    if not query_buying_transactions.is_user_exists(user_id):
+        if query_orders.is_user_has_new_order(user_id):
+            await bot.send_message(user_id, 'Пожалуйста, заверши заказ')
+        else:
+            await bot.send_message(user_id, "Ты уже отменил заказ")
+
+        return
+    order = query_orders.get_new_user_order(user_id)[0]
+    if len(order) == 0:
+        bot.send_message(user_id, 'Нет заказов')
         return
 
-    del buying_transactions[user_id]
+    order_id = order[0]
+    query_orders.update_done_3(order_id)
+    query_buying_transactions.delete_transaction(user_id)
     await bot.send_message(user_id, "Отменено!")
 
 
@@ -248,6 +261,7 @@ async def default_func(message: types.Message):
 
         query_orders.set_comment(order_id, message.text)
         query_orders.update_done_1(order_id)
+        query_buying_transactions.delete_transaction(user_id)
 
         msg = dict_to_order_info(order_id)
         await admin_send_message(f"<b>[ORDER]</b>\n\n{msg}",
