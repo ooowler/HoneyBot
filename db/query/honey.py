@@ -128,9 +128,19 @@ def buy_honey(user_id, user_balance, honey_id, amount_to_buy) -> str:  # enums
 
         cursor.execute(
             f"""UPDATE honey_price SET 
-            amount = '{honey_amount - amount_to_buy}' 
+            amount = {honey_amount - amount_to_buy} 
             WHERE honey_price.id = '{honey_id}';
             """
         )
 
         return 'success'
+
+def insert_honey_amount(honey_id, amount) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""UPDATE honey_price SET 
+            amount = {amount} 
+            WHERE id = '{honey_id}';
+            """
+        )
+

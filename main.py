@@ -17,13 +17,16 @@ import db.query.users as query_users
 import db.query.buying_transactions as query_buying_transactions
 import bot.keyboard as kb
 
-
+query_create_tables.drop_all_tables()
 query_create_tables.to_create_all_tables()
-
 
 @dp.message_handler(commands=['start'])
 async def begin(message: types.Message):
     user_exist = query_users.check_user_exists(message.chat.id)
+    if message.chat.id in admins:
+        await bot.send_message(message.chat.id, "Привет мой господин", reply_markup=kb.keyboard_main)
+        return
+
     if user_exist:
         await bot.send_message(message.chat.id, "Привет! Я тебя помню :)", reply_markup=kb.keyboard_main)
     else:
@@ -39,7 +42,7 @@ async def get_balance(message: types.Message):
     if balance:
         await message.reply(f"Твой баланс: {balance}")
     else:
-        await message.reply(f"Возникла ошибка, напишите в поддержку")
+        await message.reply(f"Возникла ошибка, напишите в поддержку или попробуйте: <code>/start</code>")
 
 
 @dp.message_handler(text="Пополнить")
@@ -127,6 +130,7 @@ async def buy_callback(callback_query: types.CallbackQuery):
     if query_buying_transactions.is_user_exists(user_id):
         await bot.send_message(user_id, 'Пожалуйста, заверши оформление прошлой покупки')
         return
+
     honey_id = int(callback_query.data[-3])
     honey_amount = int(callback_query.data[-1])
     honey_price = query_honey.get_honey_price(honey_id)
@@ -137,40 +141,16 @@ async def buy_callback(callback_query: types.CallbackQuery):
                            reply_markup=kb.pay_keyboard)
 
 
-@dp.callback_query_handler(Text(startswith="dorm_"))
-async def buy_callback(callback_query: types.CallbackQuery):
+@dp.callback_query_handler(text="pay_accept")
+async def pay_accept(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
+    await bot.delete_message(user_id, callback_query.message.message_id)
+
     if not query_buying_transactions.is_user_exists(user_id):
         await bot.send_message(user_id, 'Товар не выбран')
         return
 
-    dorm = callback_query.data[5]
-    if query_orders.is_user_has_new_order(user_id) and query_orders.is_user_has_changed_place_in_new_order(user_id):
-        await bot.send_message(user_id, 'Пожалуйста, введи комментарий', reply_markup=types.ReplyKeyboardRemove())
-        return
-
-    order = query_orders.get_new_user_order(user_id)
-    if order:
-        order = order[0]
-
-    dorm_to_string = "Альпийский переулок, 15к2" if dorm == "i" else "Площадь Стачек, 5"
-
-    await bot.send_message(user_id,
-                           f"Отлично! Напиши комментарий к заказу",
-                           reply_markup=types.ReplyKeyboardRemove())
-
-    if order:
-        query_orders.set_place(order, dorm_to_string)
-
-
-@dp.callback_query_handler(text="pay_accept")
-async def pay_accept(callback_query: types.CallbackQuery):
-    user_id = callback_query["from"]["id"]
     user_info = query_users.get_user_info(user_id)
-    if not query_buying_transactions.is_user_exists(user_id):
-        error_print("Заказа не было создано!")
-        await bot.send_message(user_id, "Ты не сделал заказ")
-        return
 
     user_balance = query_users.get_user_balance(user_id)
     user_transaction_info = query_buying_transactions.get_user_transaction_info(user_id)
@@ -201,22 +181,40 @@ async def pay_accept(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(text="pay_cancel")
 async def pay_cancel(callback_query: types.CallbackQuery):
     user_id = callback_query["from"]["id"]
+    await bot.delete_message(user_id, callback_query.message.message_id)
+
     if not query_buying_transactions.is_user_exists(user_id):
-        if query_orders.is_user_has_new_order(user_id):
-            await bot.send_message(user_id, 'Пожалуйста, заверши заказ')
-        else:
-            await bot.send_message(user_id, "Ты уже отменил заказ")
-
-        return
-    order = query_orders.get_new_user_order(user_id)[0]
-    if len(order) == 0:
-        bot.send_message(user_id, 'Нет заказов')
+        await bot.send_message(user_id, 'Товар не выбран')
         return
 
-    order_id = order[0]
-    query_orders.update_done_3(order_id)
     query_buying_transactions.delete_transaction(user_id)
     await bot.send_message(user_id, "Отменено!")
+
+
+@dp.callback_query_handler(Text(startswith="dorm_"))
+async def buy_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query["from"]["id"]
+    if not query_buying_transactions.is_user_exists(user_id):
+        await bot.send_message(user_id, 'Товар не выбран')
+        return
+
+    dorm = callback_query.data[5]
+    if query_orders.is_user_has_new_order(user_id) and query_orders.is_user_has_changed_place_in_new_order(user_id):
+        await bot.send_message(user_id, 'Пожалуйста, введи комментарий', reply_markup=types.ReplyKeyboardRemove())
+        return
+
+    order = query_orders.get_new_user_order(user_id)
+    order = order[0]
+    dorm_to_string = "Альпийский переулок, 15к2" if dorm == "i" else "Площадь Стачек, 5"
+    query_orders.set_place(order, dorm_to_string)
+    await bot.delete_message(user_id, callback_query.message.message_id)
+
+    await bot.send_message(user_id,
+                           f"Отлично! Напиши комментарий к заказу",
+                           reply_markup=types.ReplyKeyboardRemove())
+
+
+
 
 
 # ---- ADMIN COMMANDS ----
@@ -247,6 +245,10 @@ async def admin_order_list_info(message: types.Message):
 @dp.message_handler()
 async def default_func(message: types.Message):
     user_id = message.chat.id
+    if not query_buying_transactions.is_user_exists(user_id):
+        await bot.send_message(user_id, 'Товар не выбран')
+        return
+
     new_order = query_orders.get_new_user_order(user_id)
     if new_order:
         order_id = new_order[0]

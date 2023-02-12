@@ -66,8 +66,8 @@ class InlineHoney:
 inline_list = InlineHoney()
 inline_honey_list = inline_list.get_list_inline_honey()
 
-inline_accept_1 = InlineKeyboardButton('Верно?', callback_data='pay_accept')
-inline_cancel_2 = InlineKeyboardButton('Отмена?', callback_data='pay_cancel')
+inline_accept_1 = InlineKeyboardButton('Верно', callback_data='pay_accept')
+inline_cancel_2 = InlineKeyboardButton('Отмена', callback_data='pay_cancel')
 pay_keyboard = InlineKeyboardMarkup().add(inline_accept_1, inline_cancel_2)
 
 choose_place_1 = InlineKeyboardButton('Альпийский переулок, 15к2', callback_data='dorm_itmo')
