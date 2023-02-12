@@ -99,7 +99,6 @@ def get_honey_amount(honey_id) -> Optional[int]:
         result = cursor.fetchall()
 
         if len(result) != 1:
-            error_print(f"no honey with {honey_id} id")
             return
 
         return result[0][0]

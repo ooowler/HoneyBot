@@ -16,6 +16,7 @@ import db.query.orders as query_orders
 import db.query.users as query_users
 import db.query.buying_transactions as query_buying_transactions
 import bot.keyboard as kb
+import re
 
 query_create_tables.to_create_all_tables()
 
@@ -42,7 +43,12 @@ async def begin(message: types.Message):
     if user_id not in admins:
         return
 
-    bot.send_message(user_id, )
+    commands: str = '<code>orders_list_[0, 1, 2, 3]</code>\n' \
+                    '<code>admin_msg [your message]</code>\n' \
+                    '<code>insert_honey_[honey_id]_[honey_amount]</code>\n' \
+                    '<code>get_honey_amount_[honey_id]</code>' \
+                    ''
+    await bot.send_message(user_id, commands)
 
 
 @dp.message_handler(text="Баланс")
@@ -227,10 +233,11 @@ async def buy_callback(callback_query: types.CallbackQuery):
 
 
 @dp.message_handler(Text(startswith="admin_msg"))
-async def buy_callback(message: types.Message):
+async def admin_msg(message: types.Message):
     if message.chat.id in admins:
         for admin_id in admins:
             if admin_id == message.chat.id:
+                await bot.send_message(admin_id, 'Отправлено!')
                 continue
 
             text = message.text.replace('admin_msg', '')
@@ -239,12 +246,85 @@ async def buy_callback(message: types.Message):
                 await bot.send_message(admin_id, f'[ADMIN MESSAGE] {text}')
 
 
-@dp.message_handler(text="order_list_info")
+@dp.message_handler(Text(startswith="insert_honey_"))
+async def admin_msg(message: types.Message):
+    user_id = message.chat.id
+    if user_id in admins:
+        if len(message.text.split('_')) != 4:
+            await bot.send_message(user_id, 'Invalid query. Incorrect args')
+            return
+
+        honey_id = message.text.split('_')[2]
+        honey_amount = message.text.split('_')[3]
+
+        if not (honey_amount.isdigit() and honey_amount.isdigit()):
+            await bot.send_message(user_id, 'please, enter a number')
+            return
+
+        query_honey.insert_honey_amount(honey_id, honey_amount)
+        await bot.send_message(user_id, 'Maybe success, verify honey amount')
+
+
+@dp.message_handler(Text(startswith="get_honey_amount_"))
+async def admin_msg(message: types.Message):
+    user_id = message.chat.id
+    if user_id in admins:
+        if len(message.text.split('_')) != 4:
+            await bot.send_message(user_id, 'Invalid query. Incorrect args')
+            return
+
+        honey_id = message.text.split('_')[3]
+        if not honey_id.isdigit():
+            await bot.send_message(user_id, 'please, enter a number')
+            return
+
+        honey_amount = query_honey.get_honey_amount(honey_id)
+
+        if honey_amount:
+            await bot.send_message(user_id, f'honey_amount: {honey_amount}')
+        else:
+            await bot.send_message(user_id, f'no honey with id: {honey_id}')
+
+
+@dp.message_handler(Text(startswith="orders_list_"))
 async def admin_order_list_info(message: types.Message):
-    if message.chat.id in admins:
-        orders = query_orders.get_all_orders()
+    user_id = message.chat.id
+    if user_id in admins:
+        done_id = int(message.text[-1])
+        if done_id not in [0, 1, 2, 3]:
+            await bot.send_message(user_id, 'only [0, 1, 2, 3] states can be')
+            return
+        orders = query_orders.get_all_orders_done_id(done_id)
+        if not orders:
+            await bot.send_message(user_id, 'no orders')
+            return
+
         for order in orders:
-            await bot.send_message(message.chat.id, f"[DEBUG INFO]\n{order}")
+            msg = dict_to_order_info(order[0])
+            if done_id == 0:
+                await bot.send_message(user_id, f"[PENDING PAYMENT ORDERS]\n\n{msg}")
+            if done_id == 1:
+                await bot.send_message(user_id, f"[PAID ORDERS]\n\n{msg}",
+                                       reply_markup=kb.admin_keyboard_order_complete)
+            elif done_id == 2:
+                await bot.send_message(user_id, f"[COMPLETED ORDERS]\n\n{msg}")
+
+            elif done_id == 3:
+                await bot.send_message(user_id, f"[CANCELED ORDERS]\n\n{msg}")
+
+
+@dp.callback_query_handler(text="order_complete")
+async def order_complete(callback_query: types.CallbackQuery):
+    user_id = callback_query["from"]["id"]
+    order_id_start_index = re.search("\d", callback_query.message.text).start()
+    order_id_end_index = order_id_start_index
+    while callback_query.message.text[order_id_end_index].isdigit():
+        order_id_end_index += 1
+
+    order_id_num = int(callback_query.message.text[order_id_start_index: order_id_end_index])
+
+    query_orders.update_done_2(order_id_num)
+    await bot.delete_message(user_id, callback_query.message.message_id)
 
 
 # ---- DEFAULT -----
@@ -252,7 +332,6 @@ async def admin_order_list_info(message: types.Message):
 async def default_func(message: types.Message):
     user_id = message.chat.id
     if not query_buying_transactions.is_user_exists(user_id):
-        await bot.send_message(user_id, 'Товар не выбран')
         return
 
     new_order = query_orders.get_new_user_order(user_id)

@@ -42,6 +42,15 @@ def update_done_1(order_id) -> None:
             """
         )
 
+def update_done_2(order_id) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""UPDATE orders SET 
+                done = 2
+                WHERE orders.order_id = {order_id};
+            """
+        )
+
 def update_done_3(order_id) -> None:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -84,18 +93,18 @@ def is_user_has_changed_place_in_new_order(user_id) -> bool:
 
         return True
 
-def get_all_orders() -> Optional[list]:
+
+def get_all_orders_done_id(done_id) -> Optional[list]:
     with connection.cursor() as cursor:
         cursor.execute(
             f"""select * from orders
-            where done = 1;
+            where done = {done_id};
             """
         )
 
         result = cursor.fetchall()
 
         if len(result) == 0:
-            error_print('no orders')
             return
 
         return result
