@@ -4,7 +4,6 @@ from aiogram import types, executor
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ContentType
 from bot.io_admin import dict_to_order_info, str_to_products_info
-from db.io.prints import system_print, error_print
 from system_info import PAYMENTS_TOKEN, admins
 from bot.bot import bot, dp
 from bot.io_admin import admin_send_message
