@@ -134,6 +134,7 @@ def buy_honey(user_id, user_balance, honey_id, amount_to_buy) -> str:  # enums
 
         return 'success'
 
+
 def insert_honey_amount(honey_id, amount) -> None:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -142,4 +143,3 @@ def insert_honey_amount(honey_id, amount) -> None:
             WHERE id = '{honey_id}';
             """
         )
-
